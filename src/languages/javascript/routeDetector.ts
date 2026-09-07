@@ -1,5 +1,6 @@
 import ts from "typescript";
 import { ApiContract, HttpMethod } from "../../core/apiContract";
+import { JavaScriptRoute } from "./javascriptRoute";
 
 const HTTP_METHODS: HttpMethod[] = [
     "GET",
@@ -12,7 +13,7 @@ const HTTP_METHODS: HttpMethod[] = [
 export function detectRoutes(
     sourceCode: string,
     filePath: string
-): ApiContract[] {
+): JavaScriptRoute[] {
 
     const sourceFile = ts.createSourceFile(
         filePath,
@@ -21,7 +22,7 @@ export function detectRoutes(
         true
     );
 
-    const contracts: ApiContract[] = [];
+    const routes: JavaScriptRoute[] = [];
 
     function visit(node: ts.Node) {
 
@@ -43,11 +44,14 @@ export function detectRoutes(
 
                 if (HTTP_METHODS.includes(method as HttpMethod)) {
 
-                    const firstArgument = node.arguments[0];
+                    const pathArgument = node.arguments[0];
+                    const handlerArgument = node.arguments[1];
 
                     if (
-                        firstArgument &&
-                        ts.isStringLiteral(firstArgument)
+                        pathArgument &&
+                        ts.isStringLiteral(pathArgument) && handlerArgument &&(
+                            ts.isArrowFunction(handlerArgument) || ts.isFunctionExpression(handlerArgument)
+                        )
                     ) {
 
                         const { line } =
@@ -55,11 +59,14 @@ export function detectRoutes(
                                 node.getStart(sourceFile)
                             );
 
-                        contracts.push({
+                        routes.push({
+                            contract:{
                             method: method as HttpMethod,
-                            path: firstArgument.text,
+                            path: pathArgument.text,
                             file: filePath,
                             line: line + 1
+                            },
+                            handler: handlerArgument
                         });
                     }
                 }
@@ -72,5 +79,5 @@ export function detectRoutes(
 
     visit(sourceFile);
 
-    return contracts;
+    return routes;
 }

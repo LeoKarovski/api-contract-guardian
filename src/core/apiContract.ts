@@ -10,4 +10,14 @@ export interface ApiContract {
     path: string;
     file: string;
     line: number;
+    response?: ResponseContract;
+}
+
+export interface ResponseField {
+    name: string;
+    type: string;
+}
+
+export interface ResponseContract {
+    fields: ResponseField[];
 }

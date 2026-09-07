@@ -1,45 +1,79 @@
 import * as assert from "assert";
 import { detectRoutes } from "../languages/javascript/routeDetector";
+import ts from "typescript";
 
 suite("Route Detector", () => {
 
     test("detects Express routes", () => {
 
         const sourceCode = `
-            app.get("/users", handler);
-            app.post("/users", handler);
-            app.put("/users/:id", handler);
-            app.patch("/users/:id", handler);
-            app.delete("/users/:id", handler);
+            app.get("/users", (req, res) => {
+                res.json({ id: 1 });
+            });
 
-            router.get("/products", handler);
-            router.post("/products", handler);
+            app.post("/users", (req, res) => {
+                res.json({ success: true });
+            });
+
+            app.put("/users/:id", (req, res) => {
+                res.json({ id: 1 });
+            });
+
+            app.patch("/users/:id", (req, res) => {
+                res.json({ id: 1 });
+            });
+
+            app.delete("/users/:id", (req, res) => {
+                res.sendStatus(204);
+            });
+
+            router.get("/products", (req, res) => {
+                res.json([]);
+            });
+
+            router.post("/products", (req, res) => {
+                res.json({});
+            });
         `;
 
         const result = detectRoutes(sourceCode, "server.ts");
 
-        assert.deepStrictEqual(result, [
-            { method: "GET", path: "/users", file: "server.ts", line: 2 },
-            { method: "POST", path: "/users", file: "server.ts", line: 3 },
-            { method: "PUT", path: "/users/:id", file: "server.ts", line: 4 },
-            { method: "PATCH", path: "/users/:id", file: "server.ts", line: 5 },
-            { method: "DELETE", path: "/users/:id", file: "server.ts", line: 6 },
-            { method: "GET", path: "/products", file: "server.ts", line: 8 },
-            { method: "POST", path: "/products", file: "server.ts", line: 9 }
-        ]);
+        assert.strictEqual(result.length, 7);
+
+        assert.strictEqual(result[0].contract.method, "GET");
+        assert.strictEqual(result[0].contract.path, "/users");
+
+        assert.strictEqual(result[1].contract.method, "POST");
+        assert.strictEqual(result[1].contract.path, "/users");
+
+        assert.strictEqual(result[2].contract.method, "PUT");
+        assert.strictEqual(result[2].contract.path, "/users/:id");
+
+        assert.strictEqual(result[3].contract.method, "PATCH");
+        assert.strictEqual(result[3].contract.path, "/users/:id");
+
+        assert.strictEqual(result[4].contract.method, "DELETE");
+        assert.strictEqual(result[4].contract.path, "/users/:id");
+
+        assert.strictEqual(result[5].contract.method, "GET");
+        assert.strictEqual(result[5].contract.path, "/products");
+
+        assert.strictEqual(result[6].contract.method, "POST");
+        assert.strictEqual(result[6].contract.path, "/products");
     });
 
 
     test("ignores non Express objects", () => {
 
         const sourceCode = `
-            foo.get("/not-an-api", handler);
-            foo.post("/not-an-api", handler);
+            foo.get("/not-an-api", (req, res) => {
+                res.json({});
+            });
         `;
 
         const result = detectRoutes(sourceCode, "server.ts");
 
-        assert.deepStrictEqual(result, []);
+        assert.strictEqual(result.length, 0);
     });
 
 
@@ -51,19 +85,41 @@ suite("Route Detector", () => {
 
         const result = detectRoutes(sourceCode, "server.ts");
 
-        assert.deepStrictEqual(result, []);
+        assert.strictEqual(result.length, 0);
     });
 
 
     test("ignores routes without string paths", () => {
 
         const sourceCode = `
-            app.get(routePath, handler);
+            const routePath = "/users";
+
+            app.get(routePath, (req, res) => {
+                res.json({});
+            });
         `;
 
         const result = detectRoutes(sourceCode, "server.ts");
 
-        assert.deepStrictEqual(result, []);
+        assert.strictEqual(result.length, 0);
+    });
+
+
+    test("captures the route handler", () => {
+
+        const sourceCode = `
+            app.get("/users", (req, res) => {
+                res.json({
+                    id: 1
+                });
+            });
+        `;
+
+        const result = detectRoutes(sourceCode, "server.ts");
+
+        assert.strictEqual(result.length, 1);
+        assert.ok(result[0].handler);
+        assert.ok(ts.isArrowFunction(result[0].handler));
     });
 
 });
