@@ -42,5 +42,4 @@ suite("Contract Loader", () => {
 
         assert.deepStrictEqual(contracts, []);
     });
-
 });

@@ -1,7 +1,9 @@
 import { execFileSync } from "child_process";
 
 export class GitService {
-
+    constructor(
+        private readonly workingDirectory: string = process.cwd()
+    ) {}
     getFileAtRevision(
         filePath: string,
         revision: string
@@ -11,6 +13,7 @@ export class GitService {
             "git",
             ["show", `${revision}:${filePath}`],
             {
+                cwd: this.workingDirectory,
                 encoding: "utf-8"
             }
         );
