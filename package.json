@@ -13,11 +13,11 @@
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "api-contract-guardian.helloWorld",
-        "title": "Hello World"
-      }
-    ]
+  {
+    "command": "api-contract-guardian.scan",
+    "title": "API Contract Guardian: Scan"
+  }
+]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

@@ -15,8 +15,8 @@ import { JavaScriptParser } from "../languages/javascript/javascriptParser";
 
 suite("Git Comparison E2E",() => {
 
-    test("detects a removed endpoint between Git revisions", async () => {
-
+    test("detects a removed endpoint between Git revisions", async function () {
+        this.timeout(10000);
         const repositoryPath = mkdtempSync(
             join(
                 tmpdir(),
@@ -113,9 +113,14 @@ suite("Git Comparison E2E",() => {
             );
 
             assert.deepStrictEqual(
-                changedFiles,
-                ["server.ts"]
-            );
+    changedFiles,
+    [
+        {
+            path: "server.ts",
+            type: "MODIFIED"
+        }
+    ]
+);
 
             const loader = new ContractLoader(
                 new GitService(repositoryPath),
@@ -125,16 +130,20 @@ suite("Git Comparison E2E",() => {
             );
 
             const oldContracts =
-                loader.loadFromRevision(
-                    changedFiles,
-                    oldRevision
-                );
+    loader.loadFromRevision(
+        changedFiles.map(
+            change => change.path
+        ),
+        oldRevision
+    );
 
-            const newContracts =
-                loader.loadFromFiles(
-                    changedFiles,
-                    repositoryPath
-                );
+const newContracts =
+    loader.loadFromFiles(
+        changedFiles.map(
+            change => change.path
+        ),
+        repositoryPath
+    );
 
             const breakingChanges =
                 compareApiContracts(

@@ -1,14 +1,23 @@
-import {execFileSync} from "child_process";
+import { execFileSync } from "child_process";
+import {
+    GitFileChange,
+    GitFileChangeType
+} from "./gitFileChange";
 
 export function getChangedFiles(
     oldRevision: string,
     newRevision: string,
     workingDirectory: string = process.cwd()
-): string[] {
+): GitFileChange[] {
 
     const output = execFileSync(
         "git",
-        ["diff", "--name-only", oldRevision, newRevision],
+        [
+            "diff",
+            "--name-status",
+            oldRevision,
+            newRevision
+        ],
         {
             cwd: workingDirectory,
             encoding: "utf-8"
@@ -17,6 +26,38 @@ export function getChangedFiles(
 
     return output
         .split(/\r?\n/)
-        .map(file => file.trim())
-        .filter(Boolean);
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+
+            const [status, path] =
+                line.split(/\t+/);
+
+            let type: GitFileChangeType;
+
+            switch (status) {
+
+                case "A":
+                    type = "ADDED";
+                    break;
+
+                case "M":
+                    type = "MODIFIED";
+                    break;
+
+                case "D":
+                    type = "DELETED";
+                    break;
+
+                default:
+                    throw new Error(
+                        `Unsupported Git change status: ${status}`
+                    );
+            }
+
+            return {
+                path,
+                type
+            };
+        });
 }
