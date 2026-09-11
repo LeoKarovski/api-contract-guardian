@@ -12,6 +12,7 @@ import { ContractLoader } from "../core/contract/contractLoader";
 import { GitService } from "../core/git/gitService";
 import { getChangedFiles } from "../core/git/changedFiles";
 import { JavaScriptParser } from "../languages/javascript/javascriptParser";
+import { ContractComparisonService } from "../core/contractComparisonService";
 
 suite("Git Comparison E2E",() => {
 
@@ -180,4 +181,270 @@ const newContracts =
     );
 }
     });
+    test(
+    "handles an added API file",
+    async function () {
+
+        this.timeout(10000);
+
+        const repositoryPath = mkdtempSync(
+            join(
+                tmpdir(),
+                "api-contract-guardian-"
+            )
+        );
+
+        const runGit = (args: string[]) => {
+            return execFileSync(
+                "git",
+                args,
+                {
+                    cwd: repositoryPath,
+                    encoding: "utf-8"
+                }
+            ).trim();
+        };
+
+        try {
+
+            runGit(["init"]);
+
+            runGit([
+                "config",
+                "user.email",
+                "test@example.com"
+            ]);
+
+            runGit([
+                "config",
+                "user.name",
+                "API Contract Guardian Test"
+            ]);
+
+            writeFileSync(
+                join(repositoryPath, "server.ts"),
+                `
+                    app.get("/users", (req, res) => {
+                        res.json({
+                            users: []
+                        });
+                    });
+                `
+            );
+
+            runGit(["add", "."]);
+            runGit(["commit", "-m", "initial API"]);
+
+            const oldRevision = runGit([
+                "rev-parse",
+                "HEAD"
+            ]);
+
+            writeFileSync(
+                join(repositoryPath, "adminRoutes.ts"),
+                `
+                    app.get("/admin/users", (req, res) => {
+                        res.json({
+                            users: []
+                        });
+                    });
+                `
+            );
+
+            runGit(["add", "."]);
+            runGit([
+                "commit",
+                "-m",
+                "add admin API"
+            ]);
+
+            const newRevision = runGit([
+                "rev-parse",
+                "HEAD"
+            ]);
+
+            const service =
+                new ContractComparisonService(
+                    repositoryPath,
+                    [
+                        new JavaScriptParser()
+                    ]
+                );
+
+            const result = service.compare(
+                oldRevision,
+                newRevision
+            );
+
+            assert.deepStrictEqual(
+                result.changes,
+                [
+                    {
+                        path: "adminRoutes.ts",
+                        type: "ADDED"
+                    }
+                ]
+            );
+
+            assert.deepStrictEqual(
+                result.breakingChanges,
+                []
+            );
+
+        } finally {
+
+            await rm(
+                repositoryPath,
+                {
+                    recursive: true,
+                    force: true,
+                    maxRetries: 10,
+                    retryDelay: 200
+                }
+            );
+        }
+    }
+);
+test(
+    "detects an endpoint from a deleted API file",
+    async function () {
+
+        this.timeout(10000);
+
+        const repositoryPath = mkdtempSync(
+            join(
+                tmpdir(),
+                "api-contract-guardian-"
+            )
+        );
+
+        const runGit = (args: string[]) => {
+            return execFileSync(
+                "git",
+                args,
+                {
+                    cwd: repositoryPath,
+                    encoding: "utf-8"
+                }
+            ).trim();
+        };
+
+        try {
+
+            runGit(["init"]);
+
+            runGit([
+                "config",
+                "user.email",
+                "test@example.com"
+            ]);
+
+            runGit([
+                "config",
+                "user.name",
+                "API Contract Guardian Test"
+            ]);
+
+            writeFileSync(
+                join(repositoryPath, "server.ts"),
+                `
+                    app.get("/users", (req, res) => {
+                        res.json({
+                            users: []
+                        });
+                    });
+                `
+            );
+
+            writeFileSync(
+                join(repositoryPath, "legacyRoutes.ts"),
+                `
+                    app.get("/legacy/users", (req, res) => {
+                        res.json({
+                            users: []
+                        });
+                    });
+                `
+            );
+
+            runGit(["add", "."]);
+            runGit([
+                "commit",
+                "-m",
+                "initial API"
+            ]);
+
+            const oldRevision = runGit([
+                "rev-parse",
+                "HEAD"
+            ]);
+
+            execFileSync(
+                "git",
+                ["rm", "legacyRoutes.ts"],
+                {
+                    cwd: repositoryPath,
+                    encoding: "utf-8"
+                }
+            );
+
+            runGit([
+                "commit",
+                "-m",
+                "remove legacy API"
+            ]);
+
+            const newRevision = runGit([
+                "rev-parse",
+                "HEAD"
+            ]);
+
+            const service =
+                new ContractComparisonService(
+                    repositoryPath,
+                    [
+                        new JavaScriptParser()
+                    ]
+                );
+
+            const result = service.compare(
+                oldRevision,
+                newRevision
+            );
+
+            assert.deepStrictEqual(
+                result.changes,
+                [
+                    {
+                        path: "legacyRoutes.ts",
+                        type: "DELETED"
+                    }
+                ]
+            );
+
+            assert.deepStrictEqual(
+                result.breakingChanges,
+                [
+                    {
+                        type: "REMOVED_ENDPOINT",
+                        method: "GET",
+                        path: "/legacy/users"
+                    }
+                ]
+            );
+
+        } finally {
+
+            await rm(
+                repositoryPath,
+                {
+                    recursive: true,
+                    force: true,
+                    maxRetries: 10,
+                    retryDelay: 200
+                }
+            );
+        }
+    }
+);
 });
