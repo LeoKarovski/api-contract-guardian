@@ -2,20 +2,24 @@ import * as vscode from "vscode";
 
 import { ApiContract } from "../core/apiContract";
 import { BreakingChange } from "../core/breakingChange";
+import { ConsumerReference } from "../core/consumer";
 
 export function createDiagnostics(
     changes: BreakingChange[],
-    contracts: ApiContract[]
+    contracts: ApiContract[],
+    consumers: ConsumerReference[] = []
 ): Map<string, vscode.Diagnostic[]> {
 
-    const diagnostics = new Map<string, vscode.Diagnostic[]>();
+    const diagnostics =
+        new Map<string, vscode.Diagnostic[]>();
 
     for (const change of changes) {
 
-        const contract = findContractForChange(
-            change,
-            contracts
-        );
+        const contract =
+            findContractForChange(
+                change,
+                contracts
+            );
 
         if (!contract) {
             continue;
@@ -33,26 +37,74 @@ export function createDiagnostics(
             Number.MAX_SAFE_INTEGER
         );
 
-        const diagnostic = new vscode.Diagnostic(
-            range,
-            getDiagnosticMessage(change),
-            vscode.DiagnosticSeverity.Error
+        const diagnostic =
+            new vscode.Diagnostic(
+                range,
+                getDiagnosticMessage(change),
+                vscode.DiagnosticSeverity.Error
+            );
+
+        diagnostic.source =
+            "API Contract Guardian";
+
+        addDiagnostic(
+            diagnostics,
+            contract.file,
+            diagnostic
+        );
+    }
+
+    for (const consumer of consumers) {
+
+        const line = Math.max(
+            consumer.line - 1,
+            0
         );
 
-        diagnostic.source = "API Contract Guardian";
+        const range = new vscode.Range(
+            line,
+            0,
+            line,
+            Number.MAX_SAFE_INTEGER
+        );
 
-        const fileDiagnostics =
-            diagnostics.get(contract.file) ?? [];
+        const diagnostic =
+            new vscode.Diagnostic(
+                range,
+                getConsumerDiagnosticMessage(
+                    consumer
+                ),
+                vscode.DiagnosticSeverity.Warning
+            );
 
-        fileDiagnostics.push(diagnostic);
+        diagnostic.source =
+            "API Contract Guardian";
 
-        diagnostics.set(
-            contract.file,
-            fileDiagnostics
+        addDiagnostic(
+            diagnostics,
+            consumer.file,
+            diagnostic
         );
     }
 
     return diagnostics;
+}
+
+function addDiagnostic(
+    diagnostics: Map<string, vscode.Diagnostic[]>,
+    file: string,
+    diagnostic: vscode.Diagnostic
+): void {
+
+    const fileDiagnostics =
+        diagnostics.get(file) ?? [];
+
+    fileDiagnostics.push(diagnostic);
+
+    diagnostics.set(
+        file,
+        fileDiagnostics
+    );
 }
 
 function findContractForChange(
@@ -91,4 +143,15 @@ function getDiagnosticMessage(
                 `(${change.oldType} → ${change.newType})`
             );
     }
+}
+
+function getConsumerDiagnosticMessage(
+    consumer: ConsumerReference
+): string {
+
+    return (
+        `Potentially affected consumer: ` +
+        `response field "${consumer.field}" ` +
+        `is used for ${consumer.method} ${consumer.path}`
+    );
 }

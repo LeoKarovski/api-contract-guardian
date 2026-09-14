@@ -4,6 +4,8 @@ import { ContractComparisonService } from "./core/contractComparisonService";
 import { JavaScriptParser } from "./languages/javascript/javascriptParser";
 import { logger } from "./logger";
 import { createDiagnostics } from "./vscode/diagnostics";
+import { ConsumerAnalysisService } from "./core/consumerAnalysisService";
+import { JavaScriptConsumerParser } from "./languages/javascript/consumerParser";
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -44,16 +46,28 @@ export function activate(context: vscode.ExtensionContext) {
                             new JavaScriptParser()
                         ]
                     );
+                const consumerAnalysisService =
+                    new ConsumerAnalysisService(
+                         repositoryPath,
+                     [
+                         new JavaScriptConsumerParser()
+                        ]
+                );
 
                 const result = service.compare(
                     "HEAD~1",
                     "HEAD"
                 );
+                const consumers =
+    consumerAnalysisService.analyze(
+        result.breakingChanges
+    );
 
                 const diagnostics =
                     createDiagnostics(
                         result.breakingChanges,
-                        result.oldContracts
+                        result.oldContracts,
+                        consumers
                     );
 
                 diagnosticCollection.clear();
@@ -80,7 +94,8 @@ export function activate(context: vscode.ExtensionContext) {
                 logger.info(
                     {
                         breakingChanges:
-                            result.breakingChanges.length
+                            result.breakingChanges.length,
+                        consumers: consumers.length
                     },
                     "API Contract Guardian scan completed"
                 );

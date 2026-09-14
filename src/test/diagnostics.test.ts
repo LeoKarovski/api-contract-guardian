@@ -114,4 +114,69 @@ suite("Diagnostics", () => {
         );
     });
 
+    test("creates warning for affected consumer", () => {
+
+    const contracts: ApiContract[] = [
+        {
+            method: "GET",
+            path: "/users/1",
+            file: "server.ts",
+            line: 10,
+            response: {
+                fields: [
+                    {
+                        name: "email",
+                        type: "string"
+                    }
+                ]
+            }
+        }
+    ];
+
+    const changes: BreakingChange[] = [
+        {
+            type: "REMOVED_RESPONSE_FIELD",
+            method: "GET",
+            path: "/users/1",
+            field: "email",
+            oldType: "string"
+        }
+    ];
+
+    const consumers = [
+        {
+            file: "Profile.tsx",
+            line: 3,
+            field: "email",
+            method: "GET",
+            path: "/users/1"
+        }
+    ];
+
+    const result = createDiagnostics(
+        changes,
+        contracts,
+        consumers
+    );
+
+    const diagnostics =
+        result.get("Profile.tsx");
+
+    assert.ok(diagnostics);
+    assert.strictEqual(
+        diagnostics.length,
+        1
+    );
+
+    assert.strictEqual(
+        diagnostics[0].message,
+        'Potentially affected consumer: response field "email" is used for GET /users/1'
+    );
+
+    assert.strictEqual(
+        diagnostics[0].severity,
+        1
+    );
+});
+
 });
