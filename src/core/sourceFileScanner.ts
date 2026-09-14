@@ -2,7 +2,10 @@ import {
     readdirSync,
     statSync
 } from "fs";
-import { join } from "path";
+import {
+    relative,
+    join
+} from "path";
 
 import { ConsumerParser } from "./consumerParser";
 
@@ -43,12 +46,10 @@ export function findSourceFiles(
             }
 
             const relativePath =
-                fullPath
-                    .replace(
-                        `${rootDirectory}\\`,
-                        ""
-                    )
-                    .replace(/\\/g, "/");
+                relative(
+                    rootDirectory,
+                    fullPath
+                ).replace(/\\/g, "/");
 
             const supported =
                 parsers.some(
