@@ -2,7 +2,8 @@
   "name": "api-contract-guardian",
   "displayName": "API Contract Guardian",
   "description": "Detect potentially breaking API contract changes in projects.",
-  "version": "0.0.1",
+  "version": "1.0.0",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.136.0"
   },
@@ -13,11 +14,11 @@
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-  {
-    "command": "api-contract-guardian.scan",
-    "title": "API Contract Guardian: Scan"
-  }
-]
+      {
+        "command": "api-contract-guardian.scan",
+        "title": "API Contract Guardian: Scan"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
@@ -39,6 +40,7 @@
     "@types/vscode": "^1.136.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.0.0",
+    "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.1",
     "eslint": "^10.5.0",
     "npm-run-all": "^4.1.5",
@@ -51,5 +53,19 @@
   },
   "dependencies": {
     "pino": "^10.3.1"
-  }
+  },
+  "keywords": [
+  "api",
+  "api-contract",
+  "breaking-changes",
+  "express",
+  "git",
+  "developer-tools",
+  "api-testing"
+],
+"galleryBanner": {
+  "color": "#1f2937",
+  "theme": "dark"
+},
+"pricing": "Free"
 }

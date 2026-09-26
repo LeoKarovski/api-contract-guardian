@@ -1,10 +1,7 @@
 import ts from "typescript";
-import {
-    ConsumerParser
-} from "../../core/consumerParser";
-import {
-    ConsumerReference
-} from "../../core/consumer";
+
+import { ConsumerParser } from "../../core/consumerParser";
+import { ConsumerReference } from "../../core/consumer";
 
 interface BreakingChange {
     method: string;
@@ -44,11 +41,136 @@ export class JavaScriptConsumerParser
             true
         );
 
-        const requests: ApiRequest[] = [];
+        const requests = new Map<string, ApiRequest>();
         const consumers: ConsumerReference[] = [];
+        const seen = new Set<string>();
 
-        function visit(node: ts.Node) {
+        const addConsumer = (
+            fieldNode: ts.PropertyAccessExpression,
+            request: ApiRequest,
+            change: BreakingChange
+        ): void => {
 
+            if (
+                change.method !== request.method ||
+                change.path !== request.path ||
+                !change.field ||
+                fieldNode.name.text !== change.field
+            ) {
+                return;
+            }
+
+            const line =
+                sourceFile.getLineAndCharacterOfPosition(
+                    fieldNode.getStart(sourceFile)
+                ).line + 1;
+
+            const key =
+                `${filePath}:${line}:${change.field}`;
+
+            if (seen.has(key)) {
+                return;
+            }
+
+            seen.add(key);
+
+            consumers.push({
+                file: filePath,
+                line,
+                field: fieldNode.name.text,
+                method: request.method,
+                path: request.path
+            });
+        };
+
+        const getFetchRequest = (
+            node: ts.Expression
+        ): ApiRequest | undefined => {
+
+            // fetch("/users")
+            if (
+                ts.isCallExpression(node) &&
+                ts.isIdentifier(node.expression) &&
+                node.expression.text === "fetch"
+            ) {
+
+                const argument = node.arguments[0];
+
+                if (
+                    argument &&
+                    ts.isStringLiteral(argument)
+                ) {
+                    return {
+                        variableName: "",
+                        method: "GET",
+                        path: argument.text,
+                        line:
+                            sourceFile
+                                .getLineAndCharacterOfPosition(
+                                    node.getStart(sourceFile)
+                                )
+                                .line + 1
+                    };
+                }
+            }
+
+            // const user = ...
+            if (ts.isIdentifier(node)) {
+                return requests.get(node.text);
+            }
+
+            // user.then(...).then(...)
+            if (
+                ts.isCallExpression(node) &&
+                ts.isPropertyAccessExpression(
+                    node.expression
+                ) &&
+                node.expression.name.text === "then"
+            ) {
+                return getFetchRequest(
+                    node.expression.expression
+                );
+            }
+
+            return undefined;
+        };
+
+        const inspectCallback = (
+            callbackBody: ts.Node,
+            parameterName: string,
+            request: ApiRequest
+        ): void => {
+
+            function visitCallback(node: ts.Node): void {
+
+                if (
+                    ts.isPropertyAccessExpression(node) &&
+                    ts.isIdentifier(node.expression) &&
+                    node.expression.text === parameterName
+                ) {
+                    for (const change of breakingChanges) {
+                        addConsumer(
+                            node,
+                            request,
+                            change
+                        );
+                    }
+                }
+
+                ts.forEachChild(
+                    node,
+                    visitCallback
+                );
+            }
+
+            visitCallback(callbackBody);
+        };
+
+        function visit(node: ts.Node): void {
+
+            /*
+             * const user = fetch("/users")
+             */
             if (ts.isVariableDeclaration(node)) {
 
                 const initializer =
@@ -56,93 +178,111 @@ export class JavaScriptConsumerParser
 
                 if (
                     initializer &&
-                    ts.isCallExpression(initializer) &&
-                    ts.isIdentifier(initializer.expression) &&
-                    initializer.expression.text === "fetch"
+                    ts.isIdentifier(node.name)
                 ) {
 
-                    const pathArgument =
-                        initializer.arguments[0];
+                    const request =
+                        getFetchRequest(
+                            initializer
+                        );
 
-                    if (
-                        pathArgument &&
-                        ts.isStringLiteral(pathArgument) &&
-                        node.name &&
-                        ts.isIdentifier(node.name)
-                    ) {
+                    if (request) {
 
-                        const line =
-                            sourceFile.getLineAndCharacterOfPosition(
-                                node.getStart(sourceFile)
-                            ).line + 1;
-
-                        requests.push({
-                            variableName: node.name.text,
-                            method: "GET",
-                            path: pathArgument.text,
-                            line
-                        });
+                        requests.set(
+                            node.name.text,
+                            {
+                                ...request,
+                                variableName:
+                                    node.name.text
+                            }
+                        );
                     }
                 }
             }
 
-            if (ts.isPropertyAccessExpression(node)) {
-
-                const propertyName =
-                    node.name.text;
-
-                if (!propertyName) {
-                    return;
-                }
-
-                const object =
-                    node.expression;
-
-                if (!ts.isIdentifier(object)) {
-                    return;
-                }
-
-                const variableName =
-                    object.text;
+            /*
+             * console.log(user.email)
+             */
+            if (
+                ts.isPropertyAccessExpression(node) &&
+                ts.isIdentifier(node.expression)
+            ) {
 
                 const request =
-                    requests.find(
-                        candidate =>
-                            candidate.variableName ===
-                            variableName
+                    requests.get(
+                        node.expression.text
                     );
 
-                if (!request) {
-                    return;
-                }
+                if (request) {
 
-                for (const change of breakingChanges) {
-
-                    if (
-                        change.method !== request.method ||
-                        change.path !== request.path ||
-                        !change.field ||
-                        propertyName !== change.field
-                    ) {
-                        continue;
+                    for (const change of breakingChanges) {
+                        addConsumer(
+                            node,
+                            request,
+                            change
+                        );
                     }
-
-                    const line =
-                        sourceFile.getLineAndCharacterOfPosition(
-                            node.getStart(sourceFile)
-                        ).line + 1;
-
-                    consumers.push({
-                        file: filePath,
-                        line,
-                        field: propertyName,
-                        method: request.method,
-                        path: request.path
-                    });
                 }
             }
 
-            ts.forEachChild(node, visit);
+            /*
+             * user.then(...)
+             *
+             * Also handles:
+             *
+             * user
+             *   .then(response => response.json())
+             *   .then(data => console.log(data.email))
+             */
+            if (
+                ts.isCallExpression(node) &&
+                ts.isPropertyAccessExpression(
+                    node.expression
+                ) &&
+                node.expression.name.text === "then"
+            ) {
+
+                const baseExpression =
+                    node.expression.expression;
+
+                const request =
+                    getFetchRequest(
+                        baseExpression
+                    );
+
+                if (request) {
+
+                    const callback =
+                        node.arguments.find(
+                            argument =>
+                                ts.isArrowFunction(argument) ||
+                                ts.isFunctionExpression(argument)
+                        );
+
+                    if (
+                        callback &&
+                        callback.parameters.length > 0
+                    ) {
+
+                        const parameter =
+                            callback.parameters[0].name;
+
+                        if (ts.isIdentifier(parameter)) {
+
+                            inspectCallback(
+                                callback.body,
+                                parameter.text,
+                                request
+                            );
+                        }
+                    }
+                }
+            }
+
+            ts.forEachChild(
+                node,
+                visit
+            );
         }
 
         visit(sourceFile);

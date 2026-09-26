@@ -123,5 +123,43 @@ suite("JavaScript Consumer Parser", () => {
             []
         );
     });
+    test("detects consumer through chained fetch promises", () => {
 
+    const parser =
+        new JavaScriptConsumerParser();
+
+    const sourceCode = `
+        const user = fetch("/users");
+
+        user
+            .then(response => response.json())
+            .then(data => console.log(data.email));
+    `;
+
+    const result =
+        parser.findConsumers(
+            sourceCode,
+            "Profile.tsx",
+            [
+                {
+                    method: "GET",
+                    path: "/users",
+                    field: "email"
+                }
+            ]
+        );
+
+    assert.deepStrictEqual(
+        result,
+        [
+            {
+                file: "Profile.tsx",
+                line: 6,
+                field: "email",
+                method: "GET",
+                path: "/users"
+            }
+        ]
+    );
+});
 });

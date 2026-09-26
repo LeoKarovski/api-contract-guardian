@@ -1,71 +1,299 @@
-# api-contract-guardian README
+# API Contract Guardian
 
-This is the README for your extension "api-contract-guardian". After writing up a brief description, we recommend including the following sections.
+Detect potentially breaking API contract changes before they reach
+consumers.
 
-## Features
+API Contract Guardian is a VS Code extension that compares API contracts
+across Git revisions and reports breaking changes directly in the VS
+Code Problems panel.
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+## What it detects
 
-For example if there is an image subfolder under your extension project workspace:
+### Removed endpoints
 
-\!\[feature X\]\(images/feature-x.png\)
+``` text
+GET /users/:id
+```
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+If an endpoint existed in the previous revision and is removed, Guardian
+reports:
 
-## Requirements
+``` text
+API endpoint removed: GET /users/:id
+```
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+### Removed response fields
 
 For example:
 
-This extension contributes the following settings:
+``` json
+{
+  "id": 1,
+  "email": "komal@example.com"
+}
+```
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+becoming:
 
-## Known Issues
+``` json
+{
+  "id": 1
+}
+```
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+produces:
 
-## Release Notes
+``` text
+Response field removed: email
+```
 
-Users appreciate release notes as you update your extension.
+### Response field type changes
 
-### 1.0.0
+For example:
 
-Initial release of ...
+``` text
+id: number
+```
 
-### 1.0.1
+becoming:
 
-Fixed issue #.
+``` text
+id: string
+```
 
-### 1.1.0
+is reported as a potentially breaking response-contract change.
 
-Added features X, Y, and Z.
+### Potentially affected consumers
 
----
+Guardian can identify statically detectable JavaScript/TypeScript
+consumers of changed response fields.
 
-## Following extension guidelines
+For example:
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+``` javascript
+const user = fetch("/users");
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+user
+  .then(response => response.json())
+  .then(data => console.log(data.email));
+```
 
-## Working with Markdown
+If `email` is removed from the `/users` response, Guardian can report a
+warning at the consumer location.
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
+> Consumer analysis is intentionally conservative. Dynamic URLs,
+> unsupported HTTP clients, and complex data-flow patterns may not be
+> detected.
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+## Git-aware comparison
 
-## For more information
+Guardian understands Git file changes including:
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+-   Added files
+-   Modified files
+-   Deleted files
 
-**Enjoy!**
+This allows API contracts to be compared even when API source files are
+added or removed between revisions.
+
+## How it works
+
+``` text
+Git revision
+     ↓
+Changed files
+     ↓
+Language parser
+     ↓
+API contracts
+     ↓
+Contract comparison
+     ↓
+Breaking changes
+     ↓
+Consumer analysis
+     ↓
+VS Code diagnostics
+```
+
+The core comparison engine is kept separate from the VS Code-specific
+layer.
+
+## Current language support
+
+### API detection
+
+-   JavaScript
+-   TypeScript
+
+### Consumer analysis
+
+-   JavaScript
+-   JSX
+-   TypeScript
+-   TSX
+
+The parser architecture is language-independent so additional languages
+can be added later.
+
+## Usage
+
+Open a Git repository containing your API project in VS Code.
+
+Run:
+
+``` text
+Ctrl + Shift + P
+```
+
+then:
+
+``` text
+API Contract Guardian: Scan
+```
+
+Guardian asks for the Git revision to compare against.
+
+For example:
+
+``` text
+HEAD~1
+```
+
+The current `HEAD` is used as the comparison target.
+
+Results are displayed in the VS Code **Problems** panel.
+
+## Example
+
+Suppose the previous revision contains:
+
+``` javascript
+app.get("/users", (req, res) => {
+    res.json({
+        id: 1,
+        email: "komal@example.com"
+    });
+});
+```
+
+and the current revision contains:
+
+``` javascript
+app.get("/users", (req, res) => {
+    res.json({
+        id: 1
+    });
+});
+```
+
+Guardian reports:
+
+``` text
+❌ Response field removed: email
+```
+
+If a consumer uses:
+
+``` javascript
+console.log(data.email);
+```
+
+Guardian can additionally report:
+
+``` text
+⚠️ Potentially affected consumer:
+response field "email" is used for GET /users
+```
+
+## Development
+
+Clone the repository and install dependencies:
+
+``` bash
+npm install
+```
+
+Run type checking:
+
+``` bash
+npm run check-types
+```
+
+Run linting:
+
+``` bash
+npm run lint
+```
+
+Run the test suite:
+
+``` bash
+npm test
+```
+
+Build the extension:
+
+``` bash
+npm run compile
+```
+
+## Testing
+
+The project includes unit, integration, and end-to-end tests covering:
+
+-   Express route detection
+-   Response extraction
+-   JavaScript/TypeScript parsing
+-   Git revision loading
+-   Added/modified/deleted Git files
+-   API contract comparison
+-   Consumer analysis
+-   VS Code diagnostics
+-   Cross-platform source-file handling
+
+## Architecture
+
+``` text
+src/
+├── core/
+│   ├── API contract models
+│   ├── Git integration
+│   ├── contract loading
+│   ├── contract comparison
+│   └── consumer analysis
+│
+├── languages/
+│   └── javascript/
+│       ├── route detection
+│       ├── response extraction
+│       ├── API parser
+│       └── consumer parser
+│
+├── vscode/
+│   └── diagnostics
+│
+└── test/
+    └── unit + integration + E2E tests
+```
+
+## Limitations
+
+API Contract Guardian currently focuses on statically detectable API
+contracts.
+
+It does not attempt to fully understand:
+
+-   Dynamic API URLs
+-   Runtime-generated routes
+-   Arbitrary HTTP clients
+-   Complex cross-file data flow
+-   Runtime API behavior
+-   Every possible JavaScript/TypeScript coding pattern
+
+A consumer warning should therefore be treated as a potential impact
+signal rather than proof of a runtime failure.
+
+## Contributing
+
+Contributions are welcome.

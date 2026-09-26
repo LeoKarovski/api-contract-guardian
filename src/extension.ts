@@ -54,10 +54,21 @@ export function activate(context: vscode.ExtensionContext) {
                         ]
                 );
 
-                const result = service.compare(
-                    "HEAD~1",
-                    "HEAD"
-                );
+                const baseRevision =
+    await vscode.window.showInputBox({
+        prompt: "Git revision to compare against",
+        value: "HEAD~1",
+        placeHolder: "HEAD~1, main, commit SHA, tag..."
+    });
+
+if (!baseRevision) {
+    return;
+}
+
+const result = service.compare(
+    baseRevision,
+    "HEAD"
+);
                 const consumers =
     consumerAnalysisService.analyze(
         result.breakingChanges
