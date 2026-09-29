@@ -14,6 +14,9 @@ const IGNORED_DIRECTORIES = new Set([
     "node_modules",
     ".vscode",
     ".vscode-test",
+    ".next",
+    "build",
+    "coverage",
     "dist",
     "out"
 ]);
