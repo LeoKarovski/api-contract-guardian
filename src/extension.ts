@@ -28,7 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (!workspaceFolder) {
 
                 vscode.window.showErrorMessage(
-                    "API Contract Guardian: Open a workspace folder first."
+                    "API Contract Guardian: Please open a project folder before running Scan."
                 );
 
                 return;
