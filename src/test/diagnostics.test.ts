@@ -40,7 +40,8 @@ suite("Diagnostics", () => {
 
         assert.strictEqual(
             diagnostics[0].message,
-            "API endpoint removed: GET /users/:id"
+            "API endpoint GET /users/:id was removed.\n" +
+            "This may break clients that depend on this endpoint."
         );
 
         assert.strictEqual(
@@ -89,7 +90,8 @@ suite("Diagnostics", () => {
         assert.ok(diagnostics);
         assert.strictEqual(
             diagnostics[0].message,
-            "Response field removed: email"
+            "Response field \"email\" was removed from GET /users.\n" +
+            "This may break consumers that depend on this field."
         );
     });
 
