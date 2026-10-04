@@ -126,21 +126,20 @@ function getDiagnosticMessage(
 
         case "REMOVED_ENDPOINT":
             return (
-                `API endpoint removed: ` +
-                `${change.method} ${change.path}`
+                `API endpoint ${change.method} ${change.path} was removed.\n` +
+                `This may break clients that depend on this endpoint.`
             );
 
         case "REMOVED_RESPONSE_FIELD":
             return (
-                `Response field removed: ` +
-                `${change.field}`
+                `Response field "${change.field}" was removed from ${change.method} ${change.path}.\n` +
+                `This may break consumers that depend on this field.`
             );
 
         case "CHANGED_RESPONSE_FIELD_TYPE":
             return (
-                `Response field type changed: ` +
-                `${change.field} ` +
-                `(${change.oldType} → ${change.newType})`
+                `Response field "${change.field}" changed from ${change.oldType} to ${change.newType} in ${change.method} ${change.path}.\n` +
+                `This may break consumers expecting the previous type.`
             );
     }
 }
